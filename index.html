@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bin It Right | AI Biodegradable & Non-Biodegradable Waste Classifier</title>
+    
+    <!-- Google Fonts: Outfit (Headings) & Plus Jakarta Sans (Body) for clear Visual Hierarchy -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Font Awesome for Eco & UI Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- TensorFlow.js & Google Teachable Machine Image Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+
+    <!-- Custom Tailwind Configuration for Botanical Design System -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+                        display: ['"Outfit"', 'sans-serif'],
+                    },
+                    colors: {
+                        forest: {
+                            50: '#f2f9f5',
+                            100: '#e0f2e7',
+                            200: '#c2e4d0',
+                            300: '#94cfb0',
+                            400: '#5eb389',
+                            500: '#38966b',
+                            600: '#277854',
+                            700: '#206045',
+                            800: '#1c4d38',
+                            900: '#183f2f',
+                            950: '#0c241b',
+                        },
+                        earth: {
+                            50: '#faf8f5',
+                            100: '#f3efe6',
+                            200: '#e6decb',
+                            800: '#4a3f35',
+                            900: '#2c251f',
+                        },
+                        recycle: {
+                            50: '#f0f7ff',
+                            100: '#e0effe',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            900: '#0c4a6e',
+                        }
+                    },
+                    boxShadow: {
+                        'botanical': '0 20px 40px -15px rgba(24, 63, 47, 0.08)',
+                        'glow-green': '0 0 30px -5px rgba(56, 150, 107, 0.35)',
+                        'glow-blue': '0 0 30px -5px rgba(14, 165, 233, 0.35)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Organic background pattern & smooth transitions */
+        body {
+            background-color: #faf8f5;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(194, 228, 208, 0.45) 0px, transparent 50%),
+                radial-gradient(at 100% 10%, rgba(224, 242, 231, 0.6) 0px, transparent 45%),
+                radial-gradient(at 85% 90%, rgba(224, 239, 254, 0.45) 0px, transparent 50%);
+            background-attachment: fixed;
+        }
+
+        /* Scanner laser animation when webcam is active */
+        @keyframes scanline {
+            0% { top: 5%; opacity: 0.2; }
+            50% { top: 90%; opacity: 0.9; }
+            100% { top: 5%; opacity: 0.2; }
+        }
+        .scanner-beam {
+            position: absolute;
+            left: 5%;
+            right: 5%;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, #38966b, #86efac, #38966b, transparent);
+            box-shadow: 0 0 12px #38966b;
+            border-radius: 9999px;
+            animation: scanline 3s ease-in-out infinite;
+            pointer-events: none;
+        }
+
+        /* Subtle leaf float animation */
+        @keyframes floatSlow {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-6px) rotate(2deg); }
+        }
+        .animate-float {
+            animation: floatSlow 5s ease-in-out infinite;
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f2f9f5;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #94cfb0;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #38966b;
+        }
+    </style>
+</head>
+<body class="text-forest-950 antialiased selection:bg-forest-200 selection:text-forest-950">
+
+    <!-- ==================== NAVIGATION BAR (Unity & Alignment) ==================== -->
+    <header class="sticky top-0 z-50 backdrop-blur-md bg-earth-50/85 border-b border-forest-200/60">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 py-3.5 flex items-center justify-between">
+            <!-- Brand Identity -->
+            <a href="#" class="flex items-center gap-3 group">
+                <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-forest-500 to-forest-700 text-white flex items-center justify-center shadow-md group-hover:scale-105 transition-transform">
+                    <i class="fa-solid fa-seedling text-lg"></i>
+                </div>
+                <div>
+                    <span class="font-display font-bold text-xl tracking-tight text-forest-900 block leading-none">Bin It Right</span>
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-forest-600">AI Waste Segregation</span>
+                </div>
+            </a>
+
+            <!-- Navigation Links -->
+            <nav class="hidden md:flex items-center gap-8 text-sm font-semibold text-forest-800">
+                <a href="#classifier" class="hover:text-forest-600 transition-colors">AI Scanner</a>
+                <a href="#community" class="hover:text-forest-600 transition-colors">Community Impact</a>
+                <a href="#guide" class="hover:text-forest-600 transition-colors">Sorting Guide</a>
+                <a href="#design-principles" class="hover:text-forest-600 transition-colors">Design Philosophy</a>
+            </nav>
+
+            <!-- Primary CTA -->
+            <a href="#classifier" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-forest-700 hover:bg-forest-800 text-white text-sm font-semibold shadow-sm transition-all active:scale-95">
+                <i class="fa-solid fa-camera text-xs"></i>
+                <span>Start Sorting</span>
+            </a>
+        </div>
+    </header>
+
+    <!-- ==================== HERO SECTION (Visual Hierarchy & Contrast) ==================== -->
+    <section class="relative pt-12 pb-16 sm:pt-16 sm:pb-24 overflow-hidden">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid lg:grid-cols-12 gap-12 items-center">
+                
+                <!-- Left Column: Strong Typographic Hierarchy -->
+                <div class="lg:col-span-7 space-y-6 text-center lg:text-left">
+                    <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-forest-100 border border-forest-200 text-forest-800 text-xs font-bold tracking-wide uppercase">
+                        <span class="w-2 h-2 rounded-full bg-forest-500 animate-pulse"></span>
+                        Powered by Google Teachable Machine AI
+                    </div>
+
+                    <h1 class="font-display font-extrabold text-4xl sm:text-5xl lg:text-6xl text-forest-950 tracking-tight leading-[1.1]">
+                        Smart Segmentation for a <span class="text-transparent bg-clip-text bg-gradient-to-r from-forest-600 to-emerald-500">Greener</span> Community.
+                    </h1>
+
+                    <p class="text-base sm:text-lg text-forest-800/85 max-w-2xl mx-auto lg:mx-0 leading-relaxed">
+                        Unsure whether an item belongs in the compost bin or the recycling stream? Point your camera or upload a photo to instantly classify <strong>biodegradable</strong> and <strong>non-biodegradable</strong> waste with real-time computer vision.
+                    </p>
+
+                    <!-- Dual Color-Coded Category Pills (Visual Metaphor) -->
+                    <div class="flex flex-wrap items-center justify-center lg:justify-start gap-3 pt-2">
+                        <div class="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-forest-100/90 border border-forest-300/70 text-forest-900 text-sm font-semibold">
+                            <span class="w-7 h-7 rounded-xl bg-forest-600 text-white flex items-center justify-center text-xs">
+                                <i class="fa-solid fa-leaf"></i>
+                            </span>
+                            <span>Biodegradable (Organic)</span>
+                        </div>
+                        <div class="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-recycle-50 border border-sky-200 text-recycle-900 text-sm font-semibold">
+                            <span class="w-7 h-7 rounded-xl bg-recycle-600 text-white flex items-center justify-center text-xs">
+                                <i class="fa-solid fa-recycle"></i>
+                            </span>
+                            <span>Non-Biodegradable (Synthetic)</span>
+                        </div>
+                    </div>
+
+                    <div class="pt-4 flex flex-wrap items-center justify-center lg:justify-start gap-4">
+                        <a href="#classifier" class="px-7 py-4 rounded-2xl bg-forest-700 hover:bg-forest-800 text-white font-bold text-base shadow-botanical hover:shadow-glow-green transition-all flex items-center gap-3">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            <span>Launch Waste Classifier</span>
+                        </a>
+                        <a href="#community" class="px-6 py-4 rounded-2xl bg-white hover:bg-forest-50 text-forest-900 border border-forest-200 font-semibold text-base transition-all">
+                            Why It Matters
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Right Column: Visual Balance Graphic Card -->
+                <div class="lg:col-span-5">
+                    <div class="relative bg-white/90 backdrop-blur-sm rounded-3xl p-6 sm:p-8 border border-forest-200/80 shadow-botanical animate-float">
+                        <div class="flex items-center justify-between pb-5 mb-5 border-b border-forest-100">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-2xl bg-forest-100 text-forest-700 flex items-center justify-center">
+                                    <i class="fa-solid fa-layer-group"></i>
+                                </div>
+                                <div>
+                                    <h2 class="font-display font-bold text-forest-950 text-base">Dual-Stream Segmentation</h2>
+                                    <p class="text-xs text-forest-600">Real-time neural image recognition</p>
+                                </div>
+                            </div>
+                            <span class="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">v1.0 Live</span>
+                        </div>
+
+                        <!-- Visual Split Preview -->
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="rounded-2xl bg-gradient-to-b from-forest-50 to-forest-100/80 border border-forest-200 p-4 text-center space-y-2">
+                                <div class="w-12 h-12 mx-auto rounded-2xl bg-forest-600 text-white flex items-center justify-center text-xl shadow-sm">
+                                    <i class="fa-solid fa-apple-whole"></i>
+                                </div>
+                                <h3 class="font-display font-bold text-forest-900 text-sm">Green Stream</h3>
+                                <p class="text-xs text-forest-700 leading-snug">Decomposes naturally into nutrient-rich soil.</p>
+                                <div class="pt-1">
+                                    <span class="inline-block px-2.5 py-0.5 rounded-full bg-forest-200/80 text-forest-900 text-[11px] font-bold">Compostable</span>
+                                </div>
+                            </div>
+
+                            <div class="rounded-2xl bg-gradient-to-b from-recycle-50 to-sky-100/70 border border-sky-200 p-4 text-center space-y-2">
+                                <div class="w-12 h-12 mx-auto rounded-2xl bg-recycle-600 text-white flex items-center justify-center text-xl shadow-sm">
+                                    <i class="fa-solid fa-bottle-water"></i>
+                                </div>
+                                <h3 class="font-display font-bold text-recycle-900 text-sm">Blue / Dry Stream</h3>
+                                <p class="text-xs text-recycle-700 leading-snug">Persists for centuries; requires recovery & recycling.</p>
+                                <div class="pt-1">
+                                    <span class="inline-block px-2.5 py-0.5 rounded-full bg-sky-200/80 text-recycle-900 text-[11px] font-bold">Recyclable / Residual</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Model Status Indicator Pill -->
+                        <div class="mt-5 pt-4 border-t border-forest-100 flex items-center justify-between text-xs">
+                            <span class="text-forest-700 font-medium">Teachable Machine Model:</span>
+                            <span id="hero-model-badge" class="inline-flex items-center gap-1.5 font-bold text-amber-700 bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
+                                <i class="fa-solid fa-circle-notch fa-spin"></i> Initializing AI...
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== INTERACTIVE AI CLASSIFIER STUDIO ==================== -->
+    <section id="classifier" class="py-12 sm:py-20">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            
+            <!-- Section Header -->
+            <div class="text-center max-w-2xl mx-auto mb-10 space-y-3">
+                <span class="text-xs font-bold uppercase tracking-widest text-forest-600">Interactive AI Vision</span>
+                <h2 class="font-display font-extrabold text-3xl sm:text-4xl text-forest-950">Identify & Segregate Waste</h2>
+                <p class="text-sm sm:text-base text-forest-800/80">
+                    Use your live webcam or upload a clear photo of a waste item. Our trained model will classify it and show you which bin to use.
+                </p>
+            </div>
+
+            <!-- Main Classifier Card Container (Proximity & Alignment) -->
+            <div class="bg-white rounded-3xl border border-forest-200/90 shadow-botanical overflow-hidden">
+                
+                <!-- Top Mode Switcher Bar -->
+                <div class="bg-forest-50/90 border-b border-forest-200/70 px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+                    <!-- Input Mode Tabs -->
+                    <div class="inline-flex p-1.5 rounded-2xl bg-forest-200/60 border border-forest-300/50">
+                        <button id="tab-webcam" onclick="switchMode('webcam')" class="px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 bg-forest-700 text-white shadow-sm transition-all">
+                            <i class="fa-solid fa-video"></i>
+                            <span>Live Webcam</span>
+                        </button>
+                        <button id="tab-upload" onclick="switchMode('upload')" class="px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 text-forest-800 hover:text-forest-950 transition-all">
+                            <i class="fa-solid fa-cloud-arrow-up"></i>
+                            <span>Upload Image</span>
+                        </button>
+                    </div>
+
+                    <!-- Model Connection Status -->
+                    <div id="model-status" class="flex items-center gap-2 text-xs font-semibold px-3.5 py-2 rounded-xl bg-white border border-forest-200 text-forest-800">
+                        <span id="status-dot" class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
+                        <span id="status-text">Loading Teachable Machine Model...</span>
+                    </div>
+                </div>
+
+                <!-- Two-Column Workspace: Left = Viewport, Right = Predictions & Bin Guidance -->
+                <div class="grid lg:grid-cols-12 gap-0">
+                    
+                    <!-- LEFT PANEL: Camera / Image Viewport (7 cols) -->
+                    <div class="lg:col-span-7 p-6 sm:p-8 border-b lg:border-b-0 lg:border-r border-forest-100 flex flex-col justify-between bg-earth-50/40">
+                        
+                        <!-- WEBCAM VIEW -->
+                        <div id="panel-webcam" class="space-y-5">
+                            <div class="relative aspect-square max-w-md mx-auto w-full rounded-3xl overflow-hidden bg-forest-950 border-4 border-forest-200 shadow-inner flex items-center justify-center">
+                                <!-- Placeholder before camera starts -->
+                                <div id="webcam-placeholder" class="text-center p-6 space-y-4">
+                                    <div class="w-16 h-16 mx-auto rounded-2xl bg-forest-800/80 text-forest-300 flex items-center justify-center text-2xl">
+                                        <i class="fa-solid fa-camera"></i>
+                                    </div>
+                                    <div class="space-y-1">
+                                        <p class="font-display font-bold text-white text-lg">Camera is Ready</p>
+                                        <p class="text-xs text-forest-300 max-w-xs mx-auto">Click "Start Camera" below and hold an item steady in front of your lens.</p>
+                                    </div>
+                                </div>
+
+                                <!-- Teachable Machine Canvas Container -->
+                                <div id="webcam-container" class="hidden w-full h-full flex items-center justify-center [&>canvas]:w-full [&>canvas]:h-full [&>canvas]:object-cover"></div>
+                                
+                                <!-- Animated Scanning Beam (Visible when active) -->
+                                <div id="scanner-beam" class="scanner-beam hidden"></div>
+
+                                <!-- Live Badge -->
+                                <div id="live-indicator" class="hidden absolute top-4 left-4 px-3 py-1 rounded-full bg-black/60 backdrop-blur-md text-white text-xs font-bold flex items-center gap-2">
+                                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                                    LIVE SCANNING
+                                </div>
+                            </div>
+
+                            <!-- Camera Controls -->
+                            <div class="flex flex-wrap items-center justify-center gap-3">
+                                <button id="btn-start-cam" onclick="startWebcam()" class="px-6 py-3.5 rounded-2xl bg-forest-700 hover:bg-forest-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm shadow-md transition-all flex items-center gap-2">
+                                    <i class="fa-solid fa-play"></i>
+                                    <span>Start Camera</span>
+                                </button>
+                                <button id="btn-stop-cam" onclick="stopWebcam()" class="hidden px-6 py-3.5 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm shadow-md transition-all flex items-center gap-2">
+                                    <i class="fa-solid fa-stop"></i>
+                                    <span>Stop Camera</span>
+                                </button>
+                                <button id="btn-flip-cam" onclick="toggleMirror()" class="hidden px-4 py-3.5 rounded-2xl bg-white hover:bg-forest-50 text-forest-800 border border-forest-200 font-semibold text-sm transition-all flex items-center gap-2" title="Toggle Mirror View">
+                                    <i class="fa-solid fa-arrows-left-right"></i>
+                                    <span>Flip View</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- IMAGE UPLOAD VIEW -->
+                        <div id="panel-upload" class="hidden space-y-5">
+                            <div id="drop-zone" class="relative aspect-square max-w-md mx-auto w-full rounded-3xl border-2 border-dashed border-forest-300 hover:border-forest-500 bg-white transition-all flex flex-col items-center justify-center p-6 text-center cursor-pointer overflow-hidden group">
+                                <input type="file" id="image-input" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" onchange="handleImageUpload(event)">
+                                
+                                <!-- Upload Prompt -->
+                                <div id="upload-prompt" class="space-y-3 pointer-events-none">
+                                    <div class="w-16 h-16 mx-auto rounded-2xl bg-forest-100 text-forest-700 group-hover:scale-110 transition-transform flex items-center justify-center text-2xl">
+                                        <i class="fa-solid fa-image"></i>
+                                    </div>
+                                    <div>
+                                        <p class="font-display font-bold text-forest-950 text-lg">Drop waste image here</p>
+                                        <p class="text-xs text-forest-600 mt-1">or click to browse JPG, PNG, or WEBP</p>
+                                    </div>
+                                </div>
+
+                                <!-- Uploaded Preview Image -->
+                                <img id="uploaded-preview" src="" alt="Uploaded waste preview" class="hidden w-full h-full object-contain rounded-2xl">
+                            </div>
+
+                            <div class="flex justify-center">
+                                <label for="image-input" class="cursor-pointer px-6 py-3.5 rounded-2xl bg-forest-700 hover:bg-forest-800 text-white font-bold text-sm shadow-md transition-all inline-flex items-center gap-2">
+                                    <i class="fa-solid fa-folder-open"></i>
+                                    <span>Choose Another Photo</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Inline Alert / Error Box (Never uses browser alert()) -->
+                        <div id="error-banner" class="hidden mt-4 p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-start gap-3">
+                            <i class="fa-solid fa-circle-exclamation text-base mt-0.5 text-rose-600"></i>
+                            <div id="error-message">Unable to access camera. Please check browser permissions or use the Upload Image tab.</div>
+                        </div>
+                    </div>
+
+                    <!-- RIGHT PANEL: Real-Time Results & Actionable Bin Advice (5 cols) -->
+                    <div class="lg:col-span-5 p-6 sm:p-8 flex flex-col justify-between space-y-6 bg-white">
+                        
+                        <div class="space-y-6">
+                            <div>
+                                <span class="text-xs font-bold uppercase tracking-wider text-forest-600">Classification Output</span>
+                                <h3 class="font-display font-bold text-2xl text-forest-950 mt-0.5">Segmentation Analysis</h3>
+                            </div>
+
+                            <!-- Dynamic Bin Recommendation Card -->
+                            <div id="recommendation-card" class="rounded-2xl p-5 bg-forest-50 border border-forest-200 transition-all duration-300">
+                                <div class="flex items-start gap-4">
+                                    <div id="rec-icon-box" class="w-12 h-12 rounded-2xl bg-forest-200 text-forest-800 flex items-center justify-center text-xl shrink-0">
+                                        <i class="fa-solid fa-magnifying-glass"></i>
+                                    </div>
+                                    <div class="space-y-1">
+                                        <div class="flex items-center gap-2">
+                                            <span id="rec-badge" class="text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-forest-200 text-forest-900">Awaiting Input</span>
+                                        </div>
+                                        <h4 id="rec-title" class="font-display font-bold text-lg text-forest-950">Ready to Classify</h4>
+                                        <p id="rec-desc" class="text-xs text-forest-800/85 leading-relaxed">
+                                            Start your camera or upload an image to see whether the item belongs in the Biodegradable or Non-Biodegradable bin.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Confidence Bars Container -->
+                            <div class="space-y-3">
+                                <div class="flex items-center justify-between text-xs font-bold text-forest-700">
+                                    <span>MODEL CONFIDENCE SCORES</span>
+                                    <span>PROBABILITY</span>
+                                </div>
+                                <div id="label-container" class="space-y-3.5">
+                                    <!-- Populated dynamically once model loads -->
+                                    <div class="p-4 rounded-2xl bg-earth-50 border border-forest-100 text-xs text-forest-600 text-center">
+                                        Loading neural network classes...
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Quick Pro-Tip Footer inside Classifier -->
+                        <div class="pt-4 border-t border-forest-100 flex items-center gap-3 text-xs text-forest-700">
+                            <i class="fa-solid fa-lightbulb text-amber-500 text-base"></i>
+                            <span><strong>Tip:</strong> Ensure good lighting and center one item at a time for highest accuracy.</span>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== 1. SIGNIFICANCE TO THE COMMUNITY ==================== -->
+    <section id="community" class="py-16 sm:py-24 bg-forest-900 text-white relative overflow-hidden">
+        <!-- Decorative subtle organic circles -->
+        <div class="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-forest-800/40 blur-3xl pointer-events-none"></div>
+        <div class="absolute -bottom-24 -left-24 w-96 h-96 rounded-full bg-emerald-800/30 blur-3xl pointer-events-none"></div>
+
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+            <div class="max-w-3xl mx-auto text-center space-y-4 mb-16">
+                <span class="inline-block px-3.5 py-1 rounded-full bg-forest-800 border border-forest-700 text-forest-300 text-xs font-bold uppercase tracking-widest">
+                    Community Impact & Purpose
+                </span>
+                <h2 class="font-display font-extrabold text-3xl sm:text-4xl lg:text-5xl tracking-tight">
+                    Why Proper Waste Segregation Matters to Our Community
+                </h2>
+                <p class="text-forest-200 text-base sm:text-lg leading-relaxed">
+                    Every piece of trash sorted accurately at home, in schools, and in local businesses creates a measurable ripple effect across our shared environment and public health.
+                </p>
+            </div>
+
+            <!-- 4 Pillars of Community Significance (Balanced 2x2 / 4-col Grid) -->
+            <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                
+                <!-- Card 1 -->
+                <div class="rounded-3xl bg-forest-800/60 backdrop-blur-sm border border-forest-700/80 p-6 space-y-4 hover:bg-forest-800 transition-colors">
+                    <div class="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 flex items-center justify-center text-xl">
+                        <i class="fa-solid fa-house-flood-water"></i>
+                    </div>
+                    <h3 class="font-display font-bold text-xl text-white">Prevents Clogged Waterways</h3>
+                    <p class="text-sm text-forest-200/90 leading-relaxed">
+                        Separating non-biodegradable plastics from daily waste stops single-use wrappers and bottles from blocking barangay drainage canals, significantly reducing urban flooding during heavy rains.
+                    </p>
+                </div>
+
+                <!-- Card 2 -->
+                <div class="rounded-3xl bg-forest-800/60 backdrop-blur-sm border border-forest-700/80 p-6 space-y-4 hover:bg-forest-800 transition-colors">
+                    <div class="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-400/30 text-amber-300 flex items-center justify-center text-xl">
+                        <i class="fa-solid fa-smog"></i>
+                    </div>
+                    <h3 class="font-display font-bold text-xl text-white">Cuts Methane & Landfill Burden</h3>
+                    <p class="text-sm text-forest-200/90 leading-relaxed">
+                        When biodegradable food scraps are buried beneath plastics in landfills, they rot without oxygen and release methane—a greenhouse gas 28x more potent than CO₂. Composting turns waste into fertile soil.
+                    </p>
+                </div>
+
+                <!-- Card 3 -->
+                <div class="rounded-3xl bg-forest-800/60 backdrop-blur-sm border border-forest-700/80 p-6 space-y-4 hover:bg-forest-800 transition-colors">
+                    <div class="w-12 h-12 rounded-2xl bg-sky-500/20 border border-sky-400/30 text-sky-300 flex items-center justify-center text-xl">
+                        <i class="fa-solid fa-hand-holding-heart"></i>
+                    </div>
+                    <h3 class="font-display font-bold text-xl text-white">Protects Waste Workers</h3>
+                    <p class="text-sm text-forest-200/90 leading-relaxed">
+                        Pre-segregating clean recyclables from wet organic waste protects sanitation workers and local Material Recovery Facilities (MRFs) from hazardous contamination and improves recycling recovery rates.
+                    </p>
+                </div>
+
+                <!-- Card 4 -->
+                <div class="rounded-3xl bg-forest-800/60 backdrop-blur-sm border border-forest-700/80 p-6 space-y-4 hover:bg-forest-800 transition-colors">
+                    <div class="w-12 h-12 rounded-2xl bg-lime-500/20 border border-lime-400/30 text-lime-300 flex items-center justify-center text-xl">
+                        <i class="fa-solid fa-graduation-cap"></i>
+                    </div>
+                    <h3 class="font-display font-bold text-xl text-white">Empowers Youth & Schools</h3>
+                    <p class="text-sm text-forest-200/90 leading-relaxed">
+                        Accessible AI tools turn environmental education into an interactive habit, helping students, households, and community members make confident, split-second disposal decisions.
+                    </p>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== EDUCATIONAL BIO vs NON-BIO COMPARISON GUIDE ==================== -->
+    <section id="guide" class="py-16 sm:py-24">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center max-w-2xl mx-auto mb-14 space-y-3">
+                <span class="text-xs font-bold uppercase tracking-widest text-forest-600">Quick Reference</span>
+                <h2 class="font-display font-extrabold text-3xl sm:text-4xl text-forest-950">Biodegradable vs. Non-Biodegradable</h2>
+                <p class="text-forest-800/80 text-sm sm:text-base">
+                    Understanding the biological lifecycle of everyday materials helps keep our communities clean and circular.
+                </p>
+            </div>
+
+            <!-- Symmetrical Two-Column Contrast Comparison -->
+            <div class="grid md:grid-cols-2 gap-8">
+                
+                <!-- BIODEGRADABLE CARD (Leaf Green Theme) -->
+                <div class="rounded-3xl bg-white border-2 border-forest-300 shadow-botanical overflow-hidden flex flex-col">
+                    <div class="bg-gradient-to-r from-forest-700 to-forest-600 p-6 sm:p-8 text-white flex items-center justify-between">
+                        <div>
+                            <span class="inline-block px-3 py-1 rounded-full bg-white/20 text-xs font-bold uppercase tracking-wider mb-2">Green Bin • Organic</span>
+                            <h3 class="font-display font-extrabold text-2xl sm:text-3xl">Biodegradable</h3>
+                        </div>
+                        <div class="w-14 h-14 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center text-3xl">
+                            <i class="fa-solid fa-leaf"></i>
+                        </div>
+                    </div>
+
+                    <div class="p-6 sm:p-8 space-y-6 flex-1 flex flex-col justify-between">
+                        <div class="space-y-4">
+                            <p class="text-sm text-forest-800 leading-relaxed">
+                                Materials derived from plants or animals that microorganisms (bacteria and fungi) can naturally decompose into water, carbon dioxide, and nutrient-rich compost.
+                            </p>
+
+                            <div class="p-4 rounded-2xl bg-forest-50 border border-forest-200 flex items-center justify-between">
+                                <span class="text-xs font-bold uppercase text-forest-700">Decomposition Time</span>
+                                <span class="font-display font-bold text-forest-900 text-sm">2 Weeks – 6 Months</span>
+                            </div>
+
+                            <div>
+                                <h4 class="text-xs font-bold uppercase tracking-wider text-forest-600 mb-3">Common Examples</h4>
+                                <ul class="grid grid-cols-2 gap-2.5 text-sm font-medium text-forest-900">
+                                    <li class="flex items-center gap-2"><i class="fa-solid fa-check text-forest-600"></i> Fruit & veggie peels</li>
+                                    <li class="flex items-center gap-2"><i class="fa-solid fa-check text-forest-600"></i> Leftover food scraps</li>
+                                    <li class="flex items-center gap-2"><i class="fa-solid fa-check text-forest-600"></i> Dry leaves & twigs</li>
+                                    <li class="flex items-center gap-2"><i class="fa-solid fa-check text-forest-600"></i> Uncoated paper & cardboard</li>
+                                    <li class="flex items-center gap-2"><i class="fa-solid fa-check text-forest-600"></i> Coffee grounds & eggshells</li>
+                                    <li class="flex items-center gap-2"><i class="fa-solid fa-check text-forest-600"></i> Cotton & natural fibers</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div class="pt-4 border-t border-forest-100 text-xs font-semibold text-forest-700 flex items-center gap-2">
+                            <i class="fa-solid fa-seedling text-forest-600"></i>
+                            <span>Best Action: Compost at home or place in municipal organic collection.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- NON-BIODEGRADABLE CARD (Sky / Slate Blue Theme) -->
+                <div class="rounded-3xl bg-white border-2 border-sky-300 shadow-botanical overflow-hidden flex flex-col">
+                    <div class="bg-gradient-to-r from-recycle-700 to-recycle-600 p-6 sm:p-8 text-white flex items-center justify-between">
+                        <div>
+                            <span class="inline-block px-3 py-1 rounded-full bg-white/20 text-xs font-bold uppercase tracking-wider mb-2">Blue / Dry Bin • Synthetic</span>
+                            <h3 class="font-display font-extrabold text-2xl sm:text-3xl">Non-Biodegradable</h3>
+                        </div>
+                        <div class="w-14 h-14 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center text-3xl">
+                            <i class="fa-solid fa-recycle"></i>
+                        </div>
+                    </div>
+
+                    <div class="p-6 sm:p-8 space-y-6 flex-1 flex flex-col justify-between">
+                        <div class="space-y-4">
+                            <p class="text-sm text-slate-700 leading-relaxed">
+                                Synthetic, manufactured, or mineral-based items that resist natural biological breakdown, persisting in ecosystems for centuries unless recovered, reused, or recycled.
+                            </p>
+
+                            <div class="p-4 rounded-2xl bg-recycle-50 border border-sky-200 flex items-center justify-between">
+                                <span class="text-xs font-bold uppercase text-recycle-700">Decomposition Time</span>
+                                <span class="font-display font-bold text-recycle-900 text-sm">100 – 1,000+ Years</span>
+                            </div>
+
+                            <div>
+                                <h4 class="text-xs font-bold uppercase tracking-wider text-recycle-700 mb-3">Common Examples</h4>
+                                <ul class="grid grid-cols-2 gap-2.5 text-sm font-medium text-slate-800">
+                                    <li class="flex items-center gap-2"><i class="fa-solid fa-check text-recycle-600"></i> Plastic bottles & bags</li>
+                                    <li class="flex items-center gap-2"><i class="fa-solid fa-check text-recycle-600"></i> Aluminum & tin cans</li>
+                                    <li class="flex items-center gap-2"><i class="fa-solid fa-check text-recycle-600"></i> Glass jars & bottles</li>
+                                    <li class="flex items-center gap-2"><i class="fa-solid fa-check text-recycle-600"></i> Styrofoam & sachets</li>
+                                    <li class="flex items-center gap-2"><i class="fa-solid fa-check text-recycle-600"></i> E-waste & batteries</li>
+                                    <li class="flex items-center gap-2"><i class="fa-solid fa-check text-recycle-600"></i> Synthetic nylon & polyester</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div class="pt-4 border-t border-slate-100 text-xs font-semibold text-recycle-800 flex items-center gap-2">
+                            <i class="fa-solid fa-arrows-spin text-recycle-600"></i>
+                            <span>Best Action: Rinse clean, keep dry, and send to local recycling centers.</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== 3. PRINCIPLES OF DESIGN SHOWCASE ==================== -->
+    <section id="design-principles" class="py-14 bg-forest-50/80 border-t border-forest-200/70">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-4">
+                <div>
+                    <span class="text-xs font-bold uppercase tracking-widest text-forest-600">UI/UX Architecture</span>
+                    <h2 class="font-display font-extrabold text-2xl sm:text-3xl text-forest-950 mt-1">Built on Core Principles of Design</h2>
+                </div>
+                <p class="text-xs sm:text-sm text-forest-700 max-w-md">
+                    Crafted with intentional visual communication so users can understand and act on waste segmentation effortlessly.
+                </p>
+            </div>
+
+            <div class="grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div class="p-5 rounded-2xl bg-white border border-forest-200/70 space-y-2">
+                    <span class="text-xs font-extrabold text-forest-600">01. CONTRAST</span>
+                    <h3 class="font-display font-bold text-forest-950 text-sm">Semantic Color Coding</h3>
+                    <p class="text-xs text-forest-700 leading-relaxed">Botanical forest greens clearly contrast against sky-blue recyclables and crisp off-white surfaces.</p>
+                </div>
+                <div class="p-5 rounded-2xl bg-white border border-forest-200/70 space-y-2">
+                    <span class="text-xs font-extrabold text-forest-600">02. HIERARCHY</span>
+                    <h3 class="font-display font-bold text-forest-950 text-sm">Guided Visual Flow</h3>
+                    <p class="text-xs text-forest-700 leading-relaxed">Bold display typography directs attention immediately from purpose to the interactive AI scanner.</p>
+                </div>
+                <div class="p-5 rounded-2xl bg-white border border-forest-200/70 space-y-2">
+                    <span class="text-xs font-extrabold text-forest-600">03. BALANCE</span>
+                    <h3 class="font-display font-bold text-forest-950 text-sm">Structured Grids</h3>
+                    <p class="text-xs text-forest-700 leading-relaxed">Symmetrical comparison cards and proportional split-screen scanner layouts create visual harmony.</p>
+                </div>
+                <div class="p-5 rounded-2xl bg-white border border-forest-200/70 space-y-2">
+                    <span class="text-xs font-extrabold text-forest-600">04. PROXIMITY</span>
+                    <h3 class="font-display font-bold text-forest-950 text-sm">Breathable White Space</h3>
+                    <p class="text-xs text-forest-700 leading-relaxed">Related controls, confidence bars, and disposal tips are grouped cleanly with generous padding.</p>
+                </div>
+                <div class="p-5 rounded-2xl bg-white border border-forest-200/70 space-y-2">
+                    <span class="text-xs font-extrabold text-forest-600">05. UNITY</span>
+                    <h3 class="font-display font-bold text-forest-950 text-sm">Cohesive Organic Motif</h3>
+                    <p class="text-xs text-forest-700 leading-relaxed">Consistent rounded geometry, botanical iconography, and smooth micro-interactions unify the page.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== FOOTER ==================== -->
+    <footer class="bg-forest-950 text-forest-200 py-10 border-t border-forest-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
+            <div class="flex items-center gap-2.5">
+                <i class="fa-solid fa-seedling text-emerald-400 text-base"></i>
+                <span class="font-display font-bold text-white text-sm">Bin It Right</span>
+                <span class="text-forest-400">• AI Waste Segmentation Initiative</span>
+            </div>
+            <div class="text-forest-400 text-center sm:text-right">
+                Hosted on GitHub Pages • Powered by Google Teachable Machine & TensorFlow.js
+            </div>
+        </div>
+    </footer>
+
+    <!-- ==================== TEACHABLE MACHINE & INTERACTION LOGIC ==================== -->
+    <script>
+        // Official Teachable Machine Model URL provided by user
+        const MODEL_URL = "https://teachablemachine.withgoogle.com/models/mJ3Gv_XfI/";
+
+        let model = null;
+        let webcam = null;
+        let maxPredictions = 0;
+        let isWebcamActive = false;
+        let animationFrameId = null;
+        let flipWebcam = true;
+        let currentMode = 'webcam';
+
+        // DOM Elements
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+        const heroModelBadge = document.getElementById('hero-model-badge');
+        const labelContainer = document.getElementById('label-container');
+        const errorBanner = document.getElementById('error-banner');
+        const errorMessage = document.getElementById('error-message');
+
+        // Initialize Teachable Machine Model on Page Load
+        window.addEventListener('DOMContentLoaded', async () => {
+            await loadTeachableMachineModel();
+        });
+
+        async function loadTeachableMachineModel() {
+            try {
+                const modelURL = MODEL_URL + "model.json";
+                const metadataURL = MODEL_URL + "metadata.json";
+
+                model = await tmImage.load(modelURL, metadataURL);
+                maxPredictions = model.getTotalClasses();
+
+                // Update UI status indicators
+                statusDot.className = "w-2.5 h-2.5 rounded-full bg-emerald-500";
+                statusText.textContent = `AI Ready (${maxPredictions} Waste Classes)`;
+                
+                heroModelBadge.className = "inline-flex items-center gap-1.5 font-bold text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full border border-emerald-200";
+                heroModelBadge.innerHTML = `<i class="fa-solid fa-circle-check"></i> Model Ready`;
+
+                // Build initial empty confidence bars
+                renderEmptyConfidenceBars();
+            } catch (error) {
+                console.error("Failed to load Teachable Machine model:", error);
+                statusDot.className = "w-2.5 h-2.5 rounded-full bg-rose-500";
+                statusText.textContent = "Model Load Error";
+                heroModelBadge.className = "inline-flex items-center gap-1.5 font-bold text-rose-800 bg-rose-100 px-3 py-1 rounded-full border border-rose-200";
+                heroModelBadge.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Offline`;
+                showError("Could not load the Teachable Machine model. Please check your internet connection and reload.");
+            }
+        }
+
+        function renderEmptyConfidenceBars() {
+            if (!model) return;
+            const labels = model.getClassLabels();
+            labelContainer.innerHTML = '';
+
+            labels.forEach((className, index) => {
+                const isNonBio = isClassNonBiodegradable(className);
+                const barColor = isNonBio ? 'bg-recycle-600' : 'bg-forest-600';
+                const badgeBg = isNonBio ? 'bg-recycle-50 text-recycle-800 border-sky-200' : 'bg-forest-50 text-forest-800 border-forest-200';
+
+                const row = document.createElement('div');
+                row.className = "space-y-1.5";
+                row.innerHTML = `
+                    <div class="flex items-center justify-between text-xs font-bold">
+                        <span class="px-2.5 py-0.5 rounded-lg border ${badgeBg}">${className}</span>
+                        <span id="prob-text-${index}" class="text-forest-900 font-mono">0%</span>
+                    </div>
+                    <div class="w-full h-3 bg-earth-100 rounded-full overflow-hidden p-0.5 border border-forest-100">
+                        <div id="prob-bar-${index}" class="h-full ${barColor} rounded-full transition-all duration-200" style="width: 0%"></div>
+                    </div>
+                `;
+                labelContainer.appendChild(row);
+            });
+        }
+
+        // Helper to determine whether a class label represents Non-Biodegradable or Biodegradable
+        function isClassNonBiodegradable(className) {
+            const lower = className.toLowerCase();
+            return lower.includes('non') || lower.includes('plastic') || lower.includes('metal') || lower.includes('glass') || lower.includes('recycl');
+        }
+
+        // Switch between Live Webcam and Image Upload tabs
+        function switchMode(mode) {
+            currentMode = mode;
+            hideError();
+
+            const tabWebcam = document.getElementById('tab-webcam');
+            const tabUpload = document.getElementById('tab-upload');
+            const panelWebcam = document.getElementById('panel-webcam');
+            const panelUpload = document.getElementById('panel-upload');
+
+            if (mode === 'webcam') {
+                tabWebcam.className = "px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 bg-forest-700 text-white shadow-sm transition-all";
+                tabUpload.className = "px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 text-forest-800 hover:text-forest-950 transition-all";
+                panelWebcam.classList.remove('hidden');
+                panelUpload.classList.add('hidden');
+            } else {
+                stopWebcam();
+                tabUpload.className = "px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 bg-forest-700 text-white shadow-sm transition-all";
+                tabWebcam.className = "px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 text-forest-800 hover:text-forest-950 transition-all";
+                panelUpload.classList.remove('hidden');
+                panelWebcam.classList.add('hidden');
+            }
+        }
+
+        // Start Live Webcam Classification
+        async function startWebcam() {
+            if (!model) {
+                showError("Please wait a moment for the AI model to finish loading.");
+                return;
+            }
+            hideError();
+
+            const btnStart = document.getElementById('btn-start-cam');
+            const btnStop = document.getElementById('btn-stop-cam');
+            const btnFlip = document.getElementById('btn-flip-cam');
+            const placeholder = document.getElementById('webcam-placeholder');
+            const container = document.getElementById('webcam-container');
+            const beam = document.getElementById('scanner-beam');
+            const liveBadge = document.getElementById('live-indicator');
+
+            btnStart.disabled = true;
+            btnStart.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i><span>Accessing Camera...</span>`;
+
+            try {
+                webcam = new tmImage.Webcam(400, 400, flipWebcam);
+                await webcam.setup(); // Request camera access
+                await webcam.play();
+                
+                isWebcamActive = true;
+                container.innerHTML = '';
+                container.appendChild(webcam.canvas);
+
+                placeholder.classList.add('hidden');
+                container.classList.remove('hidden');
+                beam.classList.remove('hidden');
+                liveBadge.classList.remove('hidden');
+
+                btnStart.classList.add('hidden');
+                btnStop.classList.remove('hidden');
+                btnFlip.classList.remove('hidden');
+
+                animationFrameId = window.requestAnimationFrame(webcamLoop);
+            } catch (err) {
+                console.error("Webcam error:", err);
+                btnStart.disabled = false;
+                btnStart.innerHTML = `<i class="fa-solid fa-play"></i><span>Start Camera</span>`;
+                showError("Camera access was denied or no camera was found. You can switch to the 'Upload Image' tab to test photos instead!");
+            }
+        }
+
+        // Stop Live Webcam
+        function stopWebcam() {
+            isWebcamActive = false;
+            if (animationFrameId) {
+                window.cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            if (webcam) {
+                try { webcam.stop(); } catch (e) {}
+                webcam = null;
+            }
+
+            const btnStart = document.getElementById('btn-start-cam');
+            const btnStop = document.getElementById('btn-stop-cam');
+            const btnFlip = document.getElementById('btn-flip-cam');
+            const placeholder = document.getElementById('webcam-placeholder');
+            const container = document.getElementById('webcam-container');
+            const beam = document.getElementById('scanner-beam');
+            const liveBadge = document.getElementById('live-indicator');
+
+            btnStart.disabled = false;
+            btnStart.innerHTML = `<i class="fa-solid fa-play"></i><span>Start Camera</span>`;
+            btnStart.classList.remove('hidden');
+            btnStop.classList.add('hidden');
+            btnFlip.classList.add('hidden');
+
+            container.classList.add('hidden');
+            beam.classList.add('hidden');
+            liveBadge.classList.add('hidden');
+            placeholder.classList.remove('hidden');
+        }
+
+        // Toggle Mirror / Flip Camera
+        async function toggleMirror() {
+            flipWebcam = !flipWebcam;
+            if (isWebcamActive) {
+                stopWebcam();
+                await startWebcam();
+            }
+        }
+
+        // Continuous Prediction Loop for Webcam
+        async function webcamLoop() {
+            if (!isWebcamActive || !webcam) return;
+            webcam.update();
+            await predictElement(webcam.canvas);
+            animationFrameId = window.requestAnimationFrame(webcamLoop);
+        }
+
+        // Handle Static Image Upload
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            hideError();
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const imgElement = document.getElementById('uploaded-preview');
+                const promptElement = document.getElementById('upload-prompt');
+
+                imgElement.src = e.target.result;
+                imgElement.classList.remove('hidden');
+                promptElement.classList.add('hidden');
+
+                imgElement.onload = async function() {
+                    if (!model) {
+                        showError("Model is still loading. Please try again in a second.");
+                        return;
+                    }
+                    await predictElement(imgElement);
+                };
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Run Teachable Machine Prediction & Update UI
+        async function predictElement(visualElement) {
+            const predictions = await model.predict(visualElement);
+
+            let topClass = "";
+            let highestProb = -1;
+
+            for (let i = 0; i < maxPredictions; i++) {
+                const classPrediction = predictions[i].className;
+                const probability = predictions[i].probability;
+                const percentage = Math.round(probability * 100);
+
+                const barEl = document.getElementById(`prob-bar-${i}`);
+                const textEl = document.getElementById(`prob-text-${i}`);
+
+                if (barEl && textEl) {
+                    barEl.style.width = `${percentage}%`;
+                    textEl.textContent = `${percentage}%`;
+                }
+
+                if (probability > highestProb) {
+                    highestProb = probability;
+                    topClass = classPrediction;
+                }
+            }
+
+            updateRecommendationCard(topClass, highestProb);
+        }
+
+        // Update the "Bin It Right" Guidance Card based on top prediction
+        function updateRecommendationCard(topClass, confidence) {
+            const card = document.getElementById('recommendation-card');
+            const iconBox = document.getElementById('rec-icon-box');
+            const badge = document.getElementById('rec-badge');
+            const title = document.getElementById('rec-title');
+            const desc = document.getElementById('rec-desc');
+
+            const pct = Math.round(confidence * 100);
+
+            // Low confidence threshold
+            if (confidence < 0.55) {
+                card.className = "rounded-2xl p-5 bg-amber-50/80 border border-amber-200 transition-all duration-300";
+                iconBox.className = "w-12 h-12 rounded-2xl bg-amber-200 text-amber-900 flex items-center justify-center text-xl shrink-0";
+                iconBox.innerHTML = `<i class="fa-solid fa-eye"></i>`;
+                badge.className = "text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-200 text-amber-950";
+                badge.textContent = `Low Confidence (${pct}%)`;
+                title.className = "font-display font-bold text-lg text-amber-950";
+                title.textContent = "Hold Item Closer & Steady";
+                desc.className = "text-xs text-amber-900/85 leading-relaxed";
+                desc.textContent = "Try adjusting lighting or centering a single waste item against a plain background for a clearer reading.";
+                return;
+            }
+
+            const isNonBio = isClassNonBiodegradable(topClass);
+
+            if (isNonBio) {
+                // Non-Biodegradable Styling (Sky / Blue Recycling Stream)
+                card.className = "rounded-2xl p-5 bg-recycle-50 border-2 border-sky-400 shadow-glow-blue transition-all duration-300";
+                iconBox.className = "w-12 h-12 rounded-2xl bg-recycle-600 text-white flex items-center justify-center text-xl shrink-0";
+                iconBox.innerHTML = `<i class="fa-solid fa-recycle"></i>`;
+                badge.className = "text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-sky-200 text-recycle-900";
+                badge.textContent = `${pct}% Match • Blue / Dry Bin`;
+                title.className = "font-display font-bold text-lg text-recycle-950";
+                title.textContent = `${topClass} (Non-Biodegradable)`;
+                desc.className = "text-xs text-recycle-900 leading-relaxed";
+                desc.textContent = "Place in the Non-Biodegradable / Recycling bin. Empty any remaining liquids, rinse clean, and keep dry so it can be recovered safely.";
+            } else {
+                // Biodegradable Styling (Leaf Green Compost Stream)
+                card.className = "rounded-2xl p-5 bg-forest-100/90 border-2 border-forest-500 shadow-glow-green transition-all duration-300";
+                iconBox.className = "w-12 h-12 rounded-2xl bg-forest-600 text-white flex items-center justify-center text-xl shrink-0";
+                iconBox.innerHTML = `<i class="fa-solid fa-leaf"></i>`;
+                badge.className = "text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-forest-200 text-forest-950";
+                badge.textContent = `${pct}% Match • Green / Compost Bin`;
+                title.className = "font-display font-bold text-lg text-forest-950";
+                title.textContent = `${topClass} (Biodegradable)`;
+                desc.className = "text-xs text-forest-900 leading-relaxed";
+                desc.textContent = "Place in the Biodegradable / Green bin. Ensure no plastic stickers, wrappers, or utensils are mixed in so it can decompose cleanly into compost.";
+            }
+        }
+
+        function showError(msg) {
+            errorMessage.textContent = msg;
+            errorBanner.classList.remove('hidden');
+        }
+
+        function hideError() {
+            errorBanner.classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
